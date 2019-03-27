@@ -14,7 +14,7 @@ x               dw  0
 y               dw  0
 color           db  ?
 
-pixel_row       db  200 dup(?)
+pixel_row       db  320 dup(?)
 data1 ends
 
 code1 segment
@@ -67,24 +67,23 @@ start1:
     mov ax, word ptr ds:[start_y]
     mov word ptr ds:[y], ax
     mov cx, 200
-ly: 
-    mov ax, word ptr ds:[y]
+ly: push cx  
     mov word ptr ds:[x], 0
-    push cx
-    mov dx, word ptr ds:[image_header + 4]
+    mov ax, word ptr ds:[y]
+    mov bx, word ptr ds:[image_header + 4]
     mov ax, word ptr ds:[y]
     mul bx
     mov bx, word ptr ds:[x]
     add bx, ax
-    add bx, 58
+    add bx, 55
     mov dx, bx
-    mov cx, 0
+    mov cx, 0 
     call set_file_ptr
     mov dx, offset pixel_row
-    mov cx, 250
+    mov cx, 320
     call read_file
     
-    mov cx, 250
+    mov cx, 320
 lx: push cx
     
     mov bx, word ptr ds:[x]  
