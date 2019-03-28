@@ -12,8 +12,11 @@ start_x         dw  0
 
 x               dw  0
 y               dw  0
-color           db  ?
+r               db  ?
+g               db  ?
+b               db  ?
 
+color_map       db  1024 dup(?)
 pixel_row       db  320 dup(?)
 data1 ends
 
@@ -55,6 +58,12 @@ start1:
     mov cx, 40
     call read_file
     
+    ; color map reading
+    ; TODO: only if 256 colors
+    mov dx, offset color_map
+    mov cx, 1024 ; ONLY FOR 8 bits per color!!!
+    call read_file
+    
     ; point file to pixels and set file ptr
     mov dx, word ptr ds:[bitmap_header + 10]  ; pixels offset
     mov word ptr ds:[image_ptr], dx
@@ -88,7 +97,16 @@ lx: push cx
     
     mov bx, word ptr ds:[x]  
     mov al, byte ptr ds:[pixel_row + bx]
-    mov byte ptr ds:[color], al
+    ; only for 8bits per color -----
+    mov bx, 0
+    mov bl, al
+    mov al, byte ptr ds:[color_map + bx]
+    mov byte ptr ds:[r], al
+    mov al, byte ptr ds:[color_map + bx + 1]
+    mov byte ptr ds:[g], al
+    mov al, byte ptr ds:[color_map + bx + 2]
+    mov byte ptr ds:[b], al
+    ; ------------------------------
     call set_pixel
     inc word ptr ds:[x]
     pop cx
@@ -137,9 +155,44 @@ set_pixel:
     mul bx 
     mov bx, word ptr ds:[x]
     add bx, ax
-    mov al, byte ptr ds:[color]
+    push bx
+    call convert_from_rgb
+    pop bx
     mov byte ptr es:[bx], al
-    ret          
+    ret
+    
+convert_from_rgb:
+    mov ax, 0
+    mov al, byte ptr ds:[r]
+    mov bl, 6
+    mul bl
+    mov bx, 256
+    div bx
+    mov byte ptr ds:[r], al
+    
+    mov ax, 0
+    mov al, byte ptr ds:[g]
+    mov bl, 6
+    mul bl
+    mov bx, 256
+    div bx
+    mov byte ptr ds:[g], al
+    
+    mov ax, 0
+    mov al, byte ptr ds:[b]
+    mov bl, 6
+    mul bl
+    mov bx, 256
+    div bx
+    mov byte ptr ds:[b], al
+    
+    mov ax, 0
+    mov al, byte ptr ds:[r]
+    shl al, 3h
+    add al, byte ptr ds:[g]
+    shl al, 2h
+    add al, byte ptr ds:[b]
+    ret              
     
 code1 ends
 
