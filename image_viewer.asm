@@ -84,7 +84,7 @@ ly: push cx
     mul bx
     mov bx, word ptr ds:[x]
     add bx, ax
-    add bx, 55
+    add bx, word ptr ds:[bitmap_header + 10]
     mov dx, bx
     mov cx, 0 
     call set_file_ptr
@@ -100,11 +100,11 @@ lx: push cx
     ; only for 8bits per color -----
     mov bx, 0
     mov bl, al
-    mov al, byte ptr ds:[color_map + bx]
+    mov al, byte ptr ds:[color_map + bx - 1]
     mov byte ptr ds:[r], al
-    mov al, byte ptr ds:[color_map + bx + 1]
+    mov al, byte ptr ds:[color_map + bx]
     mov byte ptr ds:[g], al
-    mov al, byte ptr ds:[color_map + bx + 2]
+    mov al, byte ptr ds:[color_map + bx + 1]
     mov byte ptr ds:[b], al
     ; ------------------------------
     call set_pixel
@@ -164,7 +164,7 @@ set_pixel:
 convert_from_rgb:
     mov ax, 0
     mov al, byte ptr ds:[r]
-    mov bl, 6
+    mov bl, 8
     mul bl
     mov bx, 256
     div bx
@@ -172,7 +172,7 @@ convert_from_rgb:
     
     mov ax, 0
     mov al, byte ptr ds:[g]
-    mov bl, 6
+    mov bl, 8
     mul bl
     mov bx, 256
     div bx
@@ -180,7 +180,7 @@ convert_from_rgb:
     
     mov ax, 0
     mov al, byte ptr ds:[b]
-    mov bl, 6
+    mov bl, 4
     mul bl
     mov bx, 256
     div bx
