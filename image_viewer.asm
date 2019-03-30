@@ -17,7 +17,7 @@ g               db  ?
 b               db  ?
 
 color_map       db  1024 dup(?)
-pixel_row       db  320 dup(?)
+pixel_row       db  1024 dup(?)
 data1 ends
 
 code1 segment
@@ -78,34 +78,31 @@ start1:
     mov cx, 200
 ly: push cx  
     mov word ptr ds:[x], 0
-    mov ax, word ptr ds:[y]
-    mov bx, word ptr ds:[image_header + 4]
-    mov ax, word ptr ds:[y]
-    mul bx
-    mov bx, word ptr ds:[x]
-    add bx, ax
-    add bx, word ptr ds:[bitmap_header + 10]
-    mov dx, bx
-    mov cx, 0 
-    call set_file_ptr
     mov dx, offset pixel_row
-    mov cx, 320
+    mov cx, 1024
     call read_file
     
     mov cx, 320
 lx: push cx
     
-    mov bx, word ptr ds:[x]  
+    mov bx, word ptr ds:[x]
+    mov ax, 0  
     mov al, byte ptr ds:[pixel_row + bx]
     ; only for 8bits per color -----
     mov bx, 0
-    mov bl, al
-    mov al, byte ptr ds:[color_map + bx - 1]
-    mov byte ptr ds:[r], al
-    mov al, byte ptr ds:[color_map + bx]
-    mov byte ptr ds:[g], al
-    mov al, byte ptr ds:[color_map + bx + 1]
+    mov bl, 4
+    mul bl
+    mov bx, ax
+    mov ax, 0
+    add bx, offset color_map
+    mov al, byte ptr ds:[bx]
+    inc bx
     mov byte ptr ds:[b], al
+    mov al, byte ptr ds:[bx]
+    inc bx
+    mov byte ptr ds:[g], al
+    mov al, byte ptr ds:[bx]
+    mov byte ptr ds:[r], al
     ; ------------------------------
     call set_pixel
     inc word ptr ds:[x]
@@ -113,6 +110,11 @@ lx: push cx
     loop lx
     
     inc word ptr ds:[y]
+    
+    ;mov al, 01h
+    ;mov dx, word ptr ds:[image_header + 4]
+    ;mov cx, 0 
+    ;call set_file_ptr
     pop cx    
     loop ly
     
@@ -136,7 +138,6 @@ end1:
 set_file_ptr:
     mov bx, word ptr ds:[handle]
     mov ah, 42h
-    mov al, 00
     int 21h
     ret
     
@@ -164,25 +165,19 @@ set_pixel:
 convert_from_rgb:
     mov ax, 0
     mov al, byte ptr ds:[r]
-    mov bl, 8
-    mul bl
-    mov bx, 256
+    mov bx, 32
     div bx
     mov byte ptr ds:[r], al
     
     mov ax, 0
     mov al, byte ptr ds:[g]
-    mov bl, 8
-    mul bl
-    mov bx, 256
+    mov bx, 32
     div bx
     mov byte ptr ds:[g], al
     
     mov ax, 0
     mov al, byte ptr ds:[b]
-    mov bl, 4
-    mul bl
-    mov bx, 256
+    mov bx, 64
     div bx
     mov byte ptr ds:[b], al
     
