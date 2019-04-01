@@ -12,8 +12,8 @@ start_x         dw  0
 
 x               dw  0
 y               dw  0
-scale           db  1
-mode            db  1
+scale           db  2
+mode            db  0
 r               db  ?
 g               db  ?
 b               db  ?
@@ -85,6 +85,7 @@ start1:
 prog: 
     ; set pointer to the end of file
     mov ax, word ptr ds:[start_y]
+    call apply_zoom
     inc ax
     mul word ptr ds:[WIDTH]
     mov cx, 0xFFFF
@@ -108,17 +109,7 @@ lx: push cx
     
     mov ax, word ptr ds:[x]
     ; apply zoom
-    mov bx, 0
-    mov bl, byte ptr ds:[scale]
-    cmp byte ptr ds:[mode], 1
-    jnz zoom_in
-zoom_out:    
-    mul bx
-    jmp after_zoom
-zoom_in:
-    mov dx, 0
-    div bx
-after_zoom:        
+    call apply_zoom       
     mov bx, ax
     ; apply start x offset
     add bx, word ptr ds:[start_x]
@@ -149,11 +140,30 @@ after_zoom:
     inc word ptr ds:[y] 
     
     ; back ptr 2*width
-    mov cx, 0xFFFF 
-    mov dx, 0xFFFF
-    mov ax, word ptr ds:[WIDTH]
-    mov bx, 2h
-    mul bx
+    
+    
+    cmp byte ptr ds:[mode], 1
+    jnz zoom_y_in:
+zoom_y_out:
+    mov ax, 0    
+    mov al, byte ptr ds:[scale] 
+    jmp after_zoom_y
+zoom_y_in:
+    mov ax, word ptr ds:[y]
+    mov bx, 0
+    mov bl, byte ptr ds:[scale]
+    mov dx, 0
+    div bx
+    mov ax, 0
+    cmp dx, 0
+    jnz after_zoom_y
+    inc ax       
+after_zoom_y:
+    inc ax
+    mul word ptr ds:[WIDTH]
+    mov cx, 0xFFFF
+    sub cx, dx 
+    mov dx, 0
     sub dx, ax
     mov al, 01h
     call set_file_ptr
@@ -295,7 +305,21 @@ dec_scale:
     jz end_scale
     dec byte ptr ds:[scale]
 end_scale:    
-    ret                    
+    ret
+    
+apply_zoom:
+    mov bx, 0
+    mov bl, byte ptr ds:[scale]
+    cmp byte ptr ds:[mode], 1
+    jnz zoom_in
+zoom_out:    
+    mul bx
+    jmp after_zoom
+zoom_in:
+    mov dx, 0
+    div bx
+after_zoom: 
+    ret                        
     
 code1 ends
 
