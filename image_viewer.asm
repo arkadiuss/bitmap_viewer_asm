@@ -12,6 +12,8 @@ start_x         dw  0
 
 x               dw  0
 y               dw  0
+scale           db  1
+mode            db  1
 r               db  ?
 g               db  ?
 b               db  ?
@@ -104,11 +106,25 @@ ly: push cx
     mov cx, 320
 lx: push cx
     
-    mov bx, word ptr ds:[x]
+    mov ax, word ptr ds:[x]
+    ; apply zoom
+    mov bx, 0
+    mov bl, byte ptr ds:[scale]
+    cmp byte ptr ds:[mode], 1
+    jnz zoom_in
+zoom_out:    
+    mul bx
+    jmp after_zoom
+zoom_in:
+    mov dx, 0
+    div bx
+after_zoom:        
+    mov bx, ax
+    ; apply start x offset
     add bx, word ptr ds:[start_x]
-    mov ax, 0  
+    mov ax, 0
+    ; only for 8bits per color -----  
     mov al, byte ptr ds:[pixel_row + bx]
-    ; only for 8bits per color -----
     mov bx, 0
     mov bl, 4
     mul bl
@@ -125,6 +141,7 @@ lx: push cx
     mov byte ptr ds:[r], al
     ; ------------------------------
     call set_pixel
+    
     inc word ptr ds:[x]
     pop cx
     loop lx
@@ -167,15 +184,27 @@ cmp_l_arr:
     dec word ptr ds:[start_x]
     
 cmp_u_arr:
-    cmp al, 72 ; left arrow
+    cmp al, 72 ; up arrow
     jnz cmp_d_arr
     dec word ptr ds:[start_y]
     
 cmp_d_arr:
-    cmp al, 80 ; left arrow
-    jnz continue
+    cmp al, 80 ; down arrow
+    jnz cmp_plus
     inc word ptr ds:[start_y]
     
+cmp_plus:    
+    cmp al, 2
+    jnz cmp_minus   
+    mov al, 0
+    call update_scale
+    
+cmp_minus:
+    cmp al, 3
+    jnz continue   
+    mov al, 1
+    call update_scale
+        
 continue:        
     jmp prog
     
@@ -245,7 +274,28 @@ convert_from_rgb:
     add al, byte ptr ds:[g]
     shl al, 2h
     add al, byte ptr ds:[b]
-    ret              
+    ret
+
+update_scale:
+    cmp byte ptr ds:[scale], 1
+    jnz no_mode_change
+    mov byte ptr ds:[mode], al
+    jmp inc_scale
+    
+no_mode_change:    
+    cmp al, byte ptr ds:[mode]
+    jnz dec_scale
+inc_scale:
+    cmp byte ptr ds:[scale], 3
+    jz end_scale
+    inc byte ptr ds:[scale]
+    jmp end_scale
+dec_scale:
+    cmp byte ptr ds:[scale], 0
+    jz end_scale
+    dec byte ptr ds:[scale]
+end_scale:    
+    ret                    
     
 code1 ends
 
