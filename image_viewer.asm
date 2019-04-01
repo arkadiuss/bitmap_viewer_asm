@@ -9,6 +9,7 @@ handle          dw  ?
 image_ptr       dw  ? 
 start_y         dw  0
 start_x         dw  0
+bytes_per_pixel dw  1
 
 x               dw  0
 y               dw  0
@@ -19,7 +20,7 @@ g               db  ?
 b               db  ?
 
 color_map       db  1024 dup(?)
-pixel_row       db  1024 dup(?)
+pixel_row       db  5000 dup(?) ; max size: bytes*width < 5000
 key             db  0
 data1 ends
 
@@ -55,7 +56,8 @@ start1:
     PIXEL_OFFSET equ bitmap_header + 10
     WIDTH equ image_header + 4
     HEIGHT equ image_header + 8
-    
+    BITS_PER_PIXEL equ image_header + 14
+       
     ; bitmap header reading
     mov dx, offset bitmap_header
     mov cx, 14 
@@ -66,16 +68,20 @@ start1:
     mov cx, 40
     call read_file
     
-    ; color map reading
-    ; TODO: only if 256 colors
+    ; count bytes per pixel
+    mov dx, 0
+    mov ax, word ptr ds:[BITS_PER_PIXEL]
+    mov bx, 8
+    div bx
+    mov byte ptr ds:[bytes_per_pixel], al 
+    
+    ; color map reading (only for 8 bits per color)
+    cmp word ptr ds:[bytes_per_pixel], 1
+    jnz no_color_map
     mov dx, offset color_map
-    mov cx, 1024 ; ONLY FOR 8 bits per color!!!
+    mov cx, 1024 ; 256 colors*4 bytes in color map
     call read_file
-    
-    ; point file to pixels and set file ptr
-    mov dx, word ptr ds:[PIXEL_OFFSET]  ; pixels offset
-    mov word ptr ds:[image_ptr], dx
-    
+no_color_map:
     ; graphical mode
     mov al, 13h
     mov ah, 0
@@ -85,9 +91,9 @@ start1:
 prog: 
     ; set pointer to the end of file
     mov ax, word ptr ds:[start_y]
-    call apply_zoom
     inc ax
     mul word ptr ds:[WIDTH]
+    mul word ptr ds:[bytes_per_pixel]
     mov cx, 0xFFFF
     sub cx, dx
     mov dx, 0
@@ -98,8 +104,10 @@ prog:
     mov word ptr ds:[y], 0
     mov cx, 200
 ly: push cx
+    mov ax, word ptr ds:[WIDTH]
+    mul word ptr ds:[bytes_per_pixel]
+    mov cx, ax
     mov dx, offset pixel_row
-    mov cx, 1024
     call read_file
     ; clear x                      
     mov word ptr ds:[x], 0
@@ -114,7 +122,9 @@ lx: push cx
     ; apply start x offset
     add bx, word ptr ds:[start_x]
     mov ax, 0
-    ; only for 8bits per color -----  
+    cmp word ptr ds:[bytes_per_pixel], 1
+    jnz read_directly
+read_from_color_map: 
     mov al, byte ptr ds:[pixel_row + bx]
     mov bx, 0
     mov bl, 4
@@ -130,7 +140,21 @@ lx: push cx
     mov byte ptr ds:[g], al
     mov al, byte ptr ds:[bx]
     mov byte ptr ds:[r], al
-    ; ------------------------------
+    jmp after_reading
+read_directly:
+    mov ax,bx
+    mov bx,3h
+    mul bx
+    mov bx, ax
+    mov al, byte ptr ds:[pixel_row + bx]
+    mov byte ptr ds:[b], al
+    inc bx
+    mov al, byte ptr ds:[pixel_row + bx]
+    mov byte ptr ds:[g], al
+    inc bx
+    mov al, byte ptr ds:[pixel_row + bx]
+    mov byte ptr ds:[r], al
+after_reading:
     call set_pixel
     
     inc word ptr ds:[x]
@@ -139,9 +163,9 @@ lx: push cx
     
     inc word ptr ds:[y] 
     
-    ; back ptr 2*width
     
-    
+    ; apply y zoom
+    ; skip reading lines or read it one more time
     cmp byte ptr ds:[mode], 1
     jnz zoom_y_in:
 zoom_y_out:
@@ -160,7 +184,10 @@ zoom_y_in:
     inc ax       
 after_zoom_y:
     inc ax
+    
+    ; back reading
     mul word ptr ds:[WIDTH]
+    mul word ptr ds:[bytes_per_pixel]
     mov cx, 0xFFFF
     sub cx, dx 
     mov dx, 0
@@ -174,7 +201,7 @@ after_zoom_y:
 keybord_input:    
     in al, 60h
     cmp al, byte ptr ds:[key]
-    jz keybord_input
+    ;jz keybord_input
     mov byte ptr cs:[key], al    
     
     cmp al, 1 ; esc
