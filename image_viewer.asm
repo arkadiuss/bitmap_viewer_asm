@@ -18,6 +18,7 @@ b               db  ?
 
 color_map       db  1024 dup(?)
 pixel_row       db  1024 dup(?)
+key             db  0
 data1 ends
 
 code1 segment
@@ -48,6 +49,11 @@ start1:
     int 21h
     mov word ptr ds:[handle], ax
     
+    ; constants
+    PIXEL_OFFSET equ bitmap_header + 10
+    WIDTH equ image_header + 4
+    HEIGHT equ image_header + 8
+    
     ; bitmap header reading
     mov dx, offset bitmap_header
     mov cx, 14 
@@ -65,27 +71,41 @@ start1:
     call read_file
     
     ; point file to pixels and set file ptr
-    mov dx, word ptr ds:[bitmap_header + 10]  ; pixels offset
+    mov dx, word ptr ds:[PIXEL_OFFSET]  ; pixels offset
     mov word ptr ds:[image_ptr], dx
     
     ; graphical mode
     mov al, 13h
     mov ah, 0
     int 10h
-    
+
+; program_loop
+prog: 
+    ; set pointer to the end of file
     mov ax, word ptr ds:[start_y]
-    mov word ptr ds:[y], ax
+    inc ax
+    mul word ptr ds:[WIDTH]
+    mov cx, 0xFFFF
+    sub cx, dx
+    mov dx, 0
+    sub dx, ax
+    mov al, 02h
+    call set_file_ptr 
+     
+    mov word ptr ds:[y], 0
     mov cx, 200
-ly: push cx  
-    mov word ptr ds:[x], 0
+ly: push cx
     mov dx, offset pixel_row
     mov cx, 1024
     call read_file
+    ; clear x                      
+    mov word ptr ds:[x], 0
     
     mov cx, 320
 lx: push cx
     
     mov bx, word ptr ds:[x]
+    add bx, word ptr ds:[start_x]
     mov ax, 0  
     mov al, byte ptr ds:[pixel_row + bx]
     ; only for 8bits per color -----
@@ -109,24 +129,62 @@ lx: push cx
     pop cx
     loop lx
     
-    inc word ptr ds:[y]
+    inc word ptr ds:[y] 
     
-    ;mov al, 01h
-    ;mov dx, word ptr ds:[image_header + 4]
-    ;mov cx, 0 
-    ;call set_file_ptr
+    ; back ptr 2*width
+    mov cx, 0xFFFF 
+    mov dx, 0xFFFF
+    mov ax, word ptr ds:[WIDTH]
+    mov bx, 2h
+    mul bx
+    sub dx, ax
+    mov al, 01h
+    call set_file_ptr
     pop cx    
     loop ly
     
+    ; keyboard
+keybord_input:    
+    in al, 60h
+    cmp al, byte ptr ds:[key]
+    jz keybord_input
+    mov byte ptr cs:[key], al    
+    
+    cmp al, 1 ; esc
+    jz end1
+    
+    cmp al, 28 ; esc
+    jz end1
+    
+cmp_r_arr:    
+    cmp al, 77 ; right arrow
+    jnz cmp_l_arr
+    inc word ptr ds:[start_x]
+    
+cmp_l_arr:
+    cmp al, 75 ; left arrow
+    jnz cmp_u_arr
+    dec word ptr ds:[start_x]
+    
+cmp_u_arr:
+    cmp al, 72 ; left arrow
+    jnz cmp_d_arr
+    dec word ptr ds:[start_y]
+    
+cmp_d_arr:
+    cmp al, 80 ; left arrow
+    jnz continue
+    inc word ptr ds:[start_y]
+    
+continue:        
+    jmp prog
+    
+end1:    
     ; file closing   
     mov bx, word ptr ds:[handle]
     mov ax, 0
     mov ah, 3eh ; close
     int 21h
-    
-end1:
-    xor ax,ax
-    int 16h ; czekaj na dowolny klawisz
     
     mov al, 3h ; tryb tekstowy
     mov ah, 0 ; zmien tryb vga
