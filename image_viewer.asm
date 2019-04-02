@@ -8,13 +8,13 @@ image_header    db  40 dup(?)
 handle          dw  ?
 image_ptr       dw  ? 
 start_y         dw  0
-start_x         dw  0
+start_x         dw  100
 bytes_per_pixel dw  1
 
 x               dw  0
 y               dw  0
-scale           db  2
-mode            db  0
+scale           db  1
+mode            db  1
 r               db  ?
 g               db  ?
 b               db  ?
@@ -92,8 +92,8 @@ prog:
     ; set pointer to the end of file
     mov ax, word ptr ds:[start_y]
     inc ax
-    mul word ptr ds:[WIDTH]
     mul word ptr ds:[bytes_per_pixel]
+    mul word ptr ds:[WIDTH]
     mov cx, 0xFFFF
     sub cx, dx
     mov dx, 0
@@ -186,8 +186,8 @@ after_zoom_y:
     inc ax
     
     ; back reading
-    mul word ptr ds:[WIDTH]
     mul word ptr ds:[bytes_per_pixel]
+    mul word ptr ds:[WIDTH]
     mov cx, 0xFFFF
     sub cx, dx 
     mov dx, 0
@@ -201,34 +201,43 @@ after_zoom_y:
 keybord_input:    
     in al, 60h
     cmp al, byte ptr ds:[key]
-    ;jz keybord_input
+    jz keybord_input
     mov byte ptr cs:[key], al    
     
     cmp al, 1 ; esc
     jz end1
     
-    cmp al, 28 ; esc
+    cmp al, 28 ; enter
     jz end1
     
 cmp_r_arr:    
     cmp al, 77 ; right arrow
     jnz cmp_l_arr
+    call check_bounds_x
+    jge continue 
     inc word ptr ds:[start_x]
     
 cmp_l_arr:
     cmp al, 75 ; left arrow
     jnz cmp_u_arr
+    cmp word ptr ds:[start_x], 0
+    jz continue
     dec word ptr ds:[start_x]
     
 cmp_u_arr:
     cmp al, 72 ; up arrow
     jnz cmp_d_arr
+    cmp word ptr ds:[start_y], 0
+    jz continue
     dec word ptr ds:[start_y]
     
 cmp_d_arr:
     cmp al, 80 ; down arrow
     jnz cmp_plus
+    call check_bounds_y
+    jge continue
     inc word ptr ds:[start_y]
+    jmp continue
     
 cmp_plus:    
     cmp al, 2
@@ -244,7 +253,26 @@ cmp_minus:
         
 continue:        
     jmp prog
+     
+
+check_bounds_x:
+    push ax
+    mov ax, 320
+    call apply_zoom
+    add ax, word ptr ds:[start_x]
+    cmp ax, word ptr ds:[WIDTH]
+    pop ax
+    ret
     
+check_bounds_y:
+    push ax
+    mov ax, 200
+    call apply_zoom
+    add ax, word ptr ds:[start_y]
+    cmp ax, word ptr ds:[HEIGHT]
+    pop ax
+    ret         
+     
 end1:    
     ; file closing   
     mov bx, word ptr ds:[handle]
@@ -252,8 +280,8 @@ end1:
     mov ah, 3eh ; close
     int 21h
     
-    mov al, 3h ; tryb tekstowy
-    mov ah, 0 ; zmien tryb vga
+    mov al, 3h
+    mov ah, 0
     int 10h 
     mov ax, 4c00h
     int 21h
@@ -326,11 +354,25 @@ inc_scale:
     cmp byte ptr ds:[scale], 3
     jz end_scale
     inc byte ptr ds:[scale]
+    call check_bounds_x
+    jge back_scale_inc
+    call check_bounds_y
+    jge back_scale_inc
+    jmp end_scale
+back_scale_inc:    
+    dec byte ptr ds:[scale]
     jmp end_scale
 dec_scale:
     cmp byte ptr ds:[scale], 0
     jz end_scale
     dec byte ptr ds:[scale]
+    call check_bounds_x
+    jge back_scale_dec
+    call check_bounds_y
+    jge back_scale_dec
+    jmp end_scale
+back_scale_dec:    
+    inc byte ptr ds:[scale]
 end_scale:    
     ret
     
