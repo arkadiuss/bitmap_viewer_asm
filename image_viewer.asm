@@ -1,27 +1,39 @@
 ASSUME cs:code1
 
 data1 segment
+; program arguments (file name)    
 image_name_len  db  0
-image_name      db  32 dup(0)    
+image_name      db  32 dup(0)
+; properties of bitmap    
 bitmap_header   db  14 dup(?)
-image_header    db  40 dup(?) 
+image_header    db  40 dup(?)
+bytes_per_pixel dw  1
+; handle to file 
 handle          dw  ?
-image_ptr       dw  ? 
+; start pixel (left top) to start rendering bitmap 
 start_y         dw  0
 start_x         dw  100
-bytes_per_pixel dw  1
 
+; position of current pixel to show
 x               dw  0
 y               dw  0
+; scale from 1 to 3 for zoom in and zoom out
 scale           db  1
-mode            db  1
+; mode 1 - zoom out, 0 - zoom in
+mode            db  1 
+; color of current pixel
 r               db  ?
 g               db  ?
 b               db  ?
 
+; color mapping from rgb to vga
 color_pallette  db  0x00,0x68,0x6B,0x6B,0x76,0x01,0x7F,0x7F,0x79,0x20,0x95,0x03,0x32,0x7B,0x2F,0x36,0x6F,0x69,0x21,0x21,0x73,0x13,0x80,0x80,0x78,0x78,0x36,0x01,0x7B,0x2F,0xD9,0xD9,0x04,0x6C,0x05,0x05,0x06,0xB8,0x6B,0x83,0x73,0x8E,0x19,0x38,0x75,0x75,0xDE,0x4A,0x04,0x6D,0x05,0x05,0x71,0xCF,0x0D,0x3A,0x73,0xBB,0x1B,0x3A,0xBD,0xBD,0x1A,0x0F
+; for 8bits bitmaps - value is mapped to rgb color
 color_map       db  1024 dup(?)
-pixel_row       db  5000 dup(?) ; max size: bytes*width < 5000
+; one row of the image
+pixel_row       db  5000 dup(?) ; max size: bytes*width < 5000 
+
+; last entered key
 key             db  0
 data1 ends
 
@@ -30,7 +42,7 @@ start1:
     ; set stack pointer 
     mov ax, seg ws1
     mov ss, ax
-    mov sp, offset ws1 ;w. stosu -> ss:sp
+    mov sp, offset ws1 
     
     ; read program arguments
     mov ax, seg image_name
@@ -49,11 +61,13 @@ start1:
     mov ds, ax
     mov dx, offset image_name
     mov ax, 0
-    mov ah, 3dh ; open
+    mov ah, 3dh 
     int 21h
     mov word ptr ds:[handle], ax
     
     ; constants
+    SCREEN_WIDTH equ 320
+    SCREEN_HEIGHT equ 200
     PIXEL_OFFSET equ bitmap_header + 10
     WIDTH equ image_header + 4
     HEIGHT equ image_header + 8
@@ -103,7 +117,7 @@ prog:
     call set_file_ptr 
      
     mov word ptr ds:[y], 0
-    mov cx, 200
+    mov cx, SCREEN_HEIGHT
 ly: push cx
     mov ax, word ptr ds:[WIDTH]
     mul word ptr ds:[bytes_per_pixel]
@@ -113,7 +127,7 @@ ly: push cx
     ; clear x                      
     mov word ptr ds:[x], 0
     
-    mov cx, 320
+    mov cx, SCREEN_WIDTH
 lx: push cx
     
     mov ax, word ptr ds:[x]
@@ -125,6 +139,7 @@ lx: push cx
     mov ax, 0
     cmp word ptr ds:[bytes_per_pixel], 1
     jnz read_directly
+    ; for 8bits map read pointer to color map and then value
 read_from_color_map: 
     mov al, byte ptr ds:[pixel_row + bx]
     mov bx, 0
@@ -142,6 +157,7 @@ read_from_color_map:
     mov al, byte ptr ds:[bx]
     mov byte ptr ds:[r], al
     jmp after_reading
+    ; for 24bits read directly rgb values
 read_directly:
     mov ax,bx
     mov bx,3h
@@ -251,23 +267,25 @@ cmp_minus:
     jnz continue   
     mov al, 1
     call update_scale
-        
+
+; end of the program loop        
 continue:        
     jmp prog
      
-
+; check if part of the image won't be small to show horizontally
 check_bounds_x:
     push ax
-    mov ax, 320
+    mov ax, SCREEN_WIDTH
     call apply_zoom
     add ax, word ptr ds:[start_x]
     cmp ax, word ptr ds:[WIDTH]
     pop ax
     ret
-    
+
+; check if part of the image won't be small to show vertically    
 check_bounds_y:
     push ax
-    mov ax, 200
+    mov ax, SCREEN_HEIGHT
     call apply_zoom
     add ax, word ptr ds:[start_y]
     cmp ax, word ptr ds:[HEIGHT]
@@ -300,11 +318,12 @@ read_file:
     mov ah, 3fh ; read
     int 21h
     ret            
-       
+
+; set pixel (x,y) to color from rgb       
 set_pixel:
     mov ax, 0a000h
     mov es, ax
-    mov bx, 320
+    mov bx, SCREEN_WIDTH
     mov ax, word ptr ds:[y]
     mul bx 
     mov bx, word ptr ds:[x]
@@ -314,7 +333,8 @@ set_pixel:
     pop bx
     mov byte ptr es:[bx], al
     ret
-    
+
+; convert rgb values to color from pallette (r,g,b will be detroyed)    
 convert_from_rgb:
     mov ax, 0
     mov al, byte ptr ds:[r]
@@ -348,28 +368,34 @@ convert_from_rgb:
     mov al, byte ptr ds:[color_pallette + bx]
     ret
 
+; validate and change scale of the image
 update_scale:
     cmp byte ptr ds:[scale], 1
     jnz no_mode_change
     mov byte ptr ds:[mode], al
     jmp inc_scale
-    
+
+; if current mode is different than previous ine than 
+; decrease the scale in other case increase it     
 no_mode_change:    
     cmp al, byte ptr ds:[mode]
     jnz dec_scale
 inc_scale:
     cmp byte ptr ds:[scale], 3
     jz end_scale
+    ; apply scale and check bounds 
     inc byte ptr ds:[scale]
     call check_bounds_x
     jge back_scale_inc
     call check_bounds_y
     jge back_scale_inc
     jmp end_scale
+    ; revert scale if it doesn't match size
 back_scale_inc:    
     dec byte ptr ds:[scale]
     jmp end_scale
 dec_scale:
+    ; apply scale and check bounds
     cmp byte ptr ds:[scale], 0
     jz end_scale
     dec byte ptr ds:[scale]
@@ -378,11 +404,13 @@ dec_scale:
     call check_bounds_y
     jge back_scale_dec
     jmp end_scale
+    ; revert scale if it doesn't match size
 back_scale_dec:    
     inc byte ptr ds:[scale]
 end_scale:    
     ret
-    
+
+; zoom in or out based on mode and scale    
 apply_zoom:
     mov bx, 0
     mov bl, byte ptr ds:[scale]
