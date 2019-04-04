@@ -311,33 +311,38 @@ set_pixel:
     push bx
     call convert_from_rgb
     pop bx
+    mov ah, al
+    mov al, 0x4F
+    sub al, ah
     mov byte ptr es:[bx], al
     ret
     
 convert_from_rgb:
     mov ax, 0
     mov al, byte ptr ds:[r]
-    mov bx, 32
-    div bx
+    mov bl, 64
+    div bl
     mov byte ptr ds:[r], al
     
     mov ax, 0
     mov al, byte ptr ds:[g]
-    mov bx, 32
-    div bx
+    mov bl, 128
+    div bl
     mov byte ptr ds:[g], al
     
     mov ax, 0
     mov al, byte ptr ds:[b]
-    mov bx, 64
-    div bx
+    mov bl, 128
+    div bl
     mov byte ptr ds:[b], al
     
     mov ax, 0
+    mov bx, 0
     mov al, byte ptr ds:[r]
-    shl al, 3h
-    add al, byte ptr ds:[g]
     shl al, 2h
+    add bl, byte ptr ds:[g]
+    shl bl, 1h
+    add al, bl
     add al, byte ptr ds:[b]
     ret
 
