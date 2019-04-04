@@ -19,6 +19,7 @@ r               db  ?
 g               db  ?
 b               db  ?
 
+color_pallette  db  0x00,0x68,0x6B,0x6B,0x76,0x01,0x7F,0x7F,0x79,0x20,0x95,0x03,0x32,0x7B,0x2F,0x36,0x6F,0x69,0x21,0x21,0x73,0x13,0x80,0x80,0x78,0x78,0x36,0x01,0x7B,0x2F,0xD9,0xD9,0x04,0x6C,0x05,0x05,0x06,0xB8,0x6B,0x83,0x73,0x8E,0x19,0x38,0x75,0x75,0xDE,0x4A,0x04,0x6D,0x05,0x05,0x71,0xCF,0x0D,0x3A,0x73,0xBB,0x1B,0x3A,0xBD,0xBD,0x1A,0x0F
 color_map       db  1024 dup(?)
 pixel_row       db  5000 dup(?) ; max size: bytes*width < 5000
 key             db  0
@@ -311,9 +312,6 @@ set_pixel:
     push bx
     call convert_from_rgb
     pop bx
-    mov ah, al
-    mov al, 0x4F
-    sub al, ah
     mov byte ptr es:[bx], al
     ret
     
@@ -326,24 +324,28 @@ convert_from_rgb:
     
     mov ax, 0
     mov al, byte ptr ds:[g]
-    mov bl, 128
+    mov bl, 64
     div bl
     mov byte ptr ds:[g], al
     
     mov ax, 0
     mov al, byte ptr ds:[b]
-    mov bl, 128
+    mov bl, 64
     div bl
     mov byte ptr ds:[b], al
     
     mov ax, 0
     mov bx, 0
-    mov al, byte ptr ds:[r]
-    shl al, 2h
-    add bl, byte ptr ds:[g]
-    shl bl, 1h
+    mov bl, byte ptr ds:[r]
+    shl bl, 4h
+    add al, bl
+    mov bl, byte ptr ds:[g]
+    shl bl, 2h
     add al, bl
     add al, byte ptr ds:[b]
+    
+    mov bx,ax
+    mov al, byte ptr ds:[color_pallette + bx]
     ret
 
 update_scale:
